@@ -1,10 +1,10 @@
 <?php
 session_start();
 
-$page = $_GET['page'] ?? 'login';
+$page = $_GET['page'] ?? 'client_home';
+$_GET['page'] = $page;
 
 switch ($page) {
-
     case 'login':
         include("../app/views/auth/login.php");
         break;
@@ -24,11 +24,26 @@ switch ($page) {
 
     //  LIVREUR
     case 'livreur_dashboard':
-        include("../app/views/livreur/home.php");
+        include("../app/controllers/LivreurController.php");
+        break;
+    case 'accepter':
+        include("../app/controllers/LivreurController.php");
+        break;
+    case 'refuser':
+        include("../app/controllers/LivreurController.php");
+        break;
+    case 'livrer':
+        include("../app/controllers/LivreurController.php");
         break;
 
     //  CLIENT
     case 'client_home':
+        include("../app/controllers/ClientController.php");
+        break;
+    case 'produit_detail':
+        include("../app/controllers/ClientController.php");
+        break;
+    case 'add_review':
         include("../app/controllers/ClientController.php");
         break;
     case 'client_commandes':
@@ -70,6 +85,25 @@ switch ($page) {
     case 'produits':
         include("../app/controllers/ProduitController.php");
         break;
+    case 'panier':
+        include("../app/views/client/panier.php");
+        break;
+    case 'valider_commande':
+        include("../app/controllers/CommandeController.php");
+        break;
+    case 'commande_form_panier':
+        include("../app/views/client/commande_form_panier.php");
+        break;
+    case 'messages':
+    case 'chat':
+    case 'send_message':
+        // Redirect send_message to send action
+        if ($page === 'send_message') $_GET['action'] = 'send';
+        if ($page === 'chat') $_GET['action'] = 'chat';
+        include("../app/controllers/MessageController.php");
+        break;
+
     default:
         echo "Page not found";
 }
+

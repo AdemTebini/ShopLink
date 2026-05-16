@@ -1,162 +1,145 @@
-# Analyse du projet ShopLink
+# Analyse du Projet : ShopLink
 
-## Résumé rapide
-ShopLink est une application web PHP/MySQL de type mini marketplace / gestion de commandes. Le projet est organisé autour de 4 rôles principaux: `client`, `vendeur`, `livreur` et `admin`. L’application permet d’authentifier un utilisateur, de parcourir des produits, de passer des commandes, de gérer un catalogue vendeur, d’assigner des livreurs et d’administrer les comptes et les produits.
+## 1. Project Overview
+- **Project Purpose**: ShopLink est une plateforme de commerce électronique (marketplace) où des vendeurs peuvent proposer leurs produits à la vente, des clients peuvent les acheter, et des livreurs indépendants peuvent s'occuper de la livraison des commandes.
+- **Marketplace Concept**: Le système met en relation directe vendeurs, clients, et livreurs, avec une supervision par un administrateur.
+- **Target Users**: 
+  - Clients finaux cherchant à acheter des produits.
+  - Commerçants ou particuliers (Vendeurs) souhaitant vendre en ligne.
+  - Personnes cherchant à générer des revenus en effectuant des livraisons (Livreurs).
+  - Administrateurs de la plateforme assurant la modération.
+- **General Workflow**: Un vendeur s'inscrit (attente d'approbation), ajoute des produits. Un client s'inscrit, navigue, ajoute au panier, et commande. Le vendeur confirme la commande. Le livreur de la même ville accepte la livraison et l'achemine au client.
 
-L’architecture est simple et très directe: un front controller dans `public/index.php` route les pages via `?page=...`, puis les contrôleurs chargent les vues et exécutent les requêtes SQL. C’est fonctionnel pour un petit projet, mais la logique métier, la sécurité et l’accès aux données sont trop mélangés pour tenir sur le long terme.
+## 2. Current Stack
+- **Langage** : PHP (Vanilla, PHP 8+ compatible)
+- **Base de données** : MySQL / MariaDB (géré via phpMyAdmin)
+- **Sessions** : Utilisation des sessions natives PHP (`$_SESSION`)
+- **Architecture** : Structure de type MVC (Modèle-Vue-Contrôleur) basique et personnalisée.
+- **Routing System** : Routage centralisé via `public/index.php` en utilisant un paramètre GET (`?page=...`) avec une instruction `switch`.
 
-## Stack et structure
-- Backend: PHP natif
-- Base de données: MySQL via `mysqli`
-- Authentification: session PHP
-- Uploads: images produits stockées dans `images/`
-- Entrée principale: `public/index.php`
+## 3. Folder Architecture
+- `app/controllers` : Contient la logique métier, le traitement des formulaires, et les interactions avec la base de données (ex: `AuthController.php`, `ClientController.php`).
+- `app/models` : Contient les classes modèles (ex: `User.php`, `Produit.php`). Actuellement sous-utilisé, une grande partie de la logique SQL est directement dans les contrôleurs.
+- `app/views` : Contient l'interface utilisateur (fichiers PHP intégrant du HTML). Divisé par rôles (`admin/`, `auth/`, `client/`, `livreur/`, `vendeur/`).
+- `public` : Point d'entrée principal (`index.php`) et ressources accessibles publiquement (`style.css`).
+- `config` : Fichiers de configuration, notamment la connexion à la base de données (`db.php`).
+- `images` : Dossier de stockage pour les images des produits uploadées par les vendeurs.
+- `database` : Contient le script SQL d'initialisation et de structure de la base de données (`shoplink.sql`).
 
-### Arborescence fonctionnelle
-- `app/controllers/`: logique de traitement
-- `app/models/`: wrappers très légers autour des requêtes SQL
-- `app/views/`: interfaces HTML séparées par rôle
-- `config/db.php`: connexion à la base `shoplink`
-- `public/`: point d’entrée web
+## 4. Roles & Permissions
+- **client** : Compte approuvé automatiquement. Peut consulter les produits, voir les détails, ajouter des avis (note de 1 à 5), ajouter des articles au panier, valider une commande, et voir l'historique de ses commandes.
+- **vendeur** : Nécessite l'approbation de l'administrateur. Peut ajouter de nouveaux produits (avec gestion des stocks et images), voir ses propres produits, voir les commandes reçues pour ses produits, et confirmer les commandes pour qu'elles passent en livraison.
+- **livreur** : Nécessite l'approbation de l'administrateur. Peut voir les commandes en attente de livraison dans sa ville, et peut accepter ou refuser de les livrer.
+- **admin** : Gère les utilisateurs (approuver ou rejeter les vendeurs et livreurs), peut supprimer des utilisateurs, modifier leurs rôles, et voir/supprimer n'importe quel produit.
 
-## Architecture réelle
-Le projet suit une forme de MVC très légère, mais pas stricte.
+## 5. Authentication System
+- **Login** : L'utilisateur se connecte avec son email et mot de passe. Le système vérifie le hash avec `password_verify()`. Le statut du compte est vérifié (rejeté ou en attente).
+- **Register** : L'utilisateur choisit un rôle. Le mot de passe est haché via `password_hash()`.
+- **Pending Approval** : Si l'utilisateur s'inscrit en tant que `vendeur` ou `livreur`, son champ `status` est mis à `pending`. Il ne peut pas se connecter tant que l'admin ne l'a pas approuvé.
+- **Admin Validation** : L'administrateur, depuis son dashboard, peut changer le statut en `approved` ou `rejected`.
+- **Sessions** : Les données de l'utilisateur connecté sont stockées dans `$_SESSION['user']`.
+- **Access Control** : Le routage et les contrôleurs vérifient `$_SESSION['user']['role']` pour restreindre l'accès (ex: seul un admin peut accéder à `admin_dashboard`).
 
-- `public/index.php` joue le rôle de routeur central.
-- Les contrôleurs incluent parfois directement les vues.
-- Les modèles contiennent peu de logique et servent surtout à exécuter une requête.
-- Plusieurs actions métier sont déclenchées directement par `$_GET` ou `$_POST`.
+## 6. Product System
+- **Add Product** : Le vendeur utilise un formulaire pour ajouter un produit (nom, prix, description, stock, catégorie, image). L'image est uploadée dans le dossier `images/`.
+- **Categories** : Les produits sont liés à une catégorie via `categorie_id` (Électronique, Vêtements, etc.).
+- **Stock** : Géré lors de l'ajout et décrémenté lors de la validation d'une commande (panier).
+- **Images** : Enregistrées localement (`move_uploaded_file`).
+- **Product Listing** : Affichage global pour les clients sur la page d'accueil, avec moyenne des notes et nombre d'avis. Affichage restreint pour le vendeur (ses propres produits).
+- **Current Product Display** : La page de détail (`produit_detail`) affiche toutes les infos du produit, le vendeur, la catégorie, et la liste des commentaires/avis.
 
-En pratique, la logique métier est répartie entre les contrôleurs et certaines vues. Cela marche pour un prototype, mais cela rend les tests, la maintenance et la sécurité plus difficiles.
+## 7. Panier & Orders Workflow
+- **Add Panier** : Le client ajoute un produit. Si le produit existe déjà, la quantité est incrémentée (sans dépasser le stock disponible).
+- **Validation** : Le client valide son panier. Le système vérifie le stock.
+- **Stock Update** : Pour chaque produit, si le stock est suffisant, le stock du produit est décrémenté (`stock = stock - quantite`).
+- **Commandes Insertion** : Une ligne est insérée dans la table `commandes` avec le statut initial `en attente`. Le vendeur est lié (`vendeur_id`). Le panier du client est ensuite vidé.
+- **Statuses** : `en attente` -> `en attente livraison` -> `en livraison` -> `livree` / `refusee`.
 
-## Fonctionnalités par rôle
+## 8. Delivery Workflow
+- **Vendeur confirms order** : Le vendeur voit les commandes `en attente` et clique sur confirmer.
+- **Status transition 1** : Le statut passe à `en attente livraison`.
+- **Livreur sees orders by city** : Le livreur, sur son dashboard, voit les commandes `en attente livraison` n'ayant pas encore de livreur assigné (`livreur_id IS NULL`), et filtrées par sa ville (`ville`).
+- **Livreur accepts/refuses** :
+  - **Accept** : Le statut passe à `en livraison` et `livreur_id` prend l'ID du livreur.
+  - **Refuse** : Le statut passe à `refusee` (note : le workflow pourrait être amélioré car refuser annule la livraison pour tout le monde, au lieu de la laisser à un autre livreur).
+- **Status transition final** : Le passage au statut `livree` n'est pas encore implémenté côté contrôleur.
 
-### Authentification
-Le projet gère l’inscription, la connexion et la déconnexion.
+## 9. Database Structure
+- **users** : id, nom, email, password, role, ville, created_at, status, telephone, cin.
+- **categories** : id, nom.
+- **produits** : id, nom, prix, description, image, user_id (vendeur), created_at, categorie_id, stock.
+- **panier** : id, client_id, produit_id, quantite.
+- **commandes** : id, client_id, vendeur_id, livreur_id, statut, created_at, produit_id, nom, prenom, phone, adresse, quantite, ville.
+- **commentaires** : id, contenu, client_id, produit_id, created_at, note.
+- **notifications** : id, user_id, message, is_read, created_at (Table existante mais inutilisée pour l'instant).
 
-- Connexion avec vérification du mot de passe hashé.
-- Redirection selon le rôle.
-- Inscription avec choix du rôle et de la ville.
-- Déconnexion via destruction de session.
+**Relations** :
+- `commandes` est le centre des transactions : lie `users` (client), `users` (vendeur), `users` (livreur), et un `produit_id` (référence externe non stricte ou à revoir car la FK `produit_id` n'a pas de contrainte ON DELETE explicitée).
+- `produits` appartient à un `users` (vendeur) et une `categories`.
+- `panier` lie `users` (client) et `produits`.
+- `commentaires` lie `users` (client) et `produits`.
 
-Références utiles: `app/controllers/AuthController.php`, `app/models/User.php`.
+## 10. Current Features Already Implemented
+- [x] Inscription et connexion avec hachage de mots de passe.
+- [x] Validation manuelle (admin) des vendeurs et livreurs.
+- [x] Ajout, listing et suppression de produits.
+- [x] Upload d'images pour les produits.
+- [x] Système d'avis et de notation (1 à 5 étoiles) sur les produits.
+- [x] Panier d'achat avec gestion des stocks.
+- [x] Passage de commande et décrémentation des stocks.
+- [x] Confirmation de la commande par le vendeur.
+- [x] Dashboard Livreur avec filtrage par ville pour récupérer des courses.
+- [x] Dashboard Administrateur (gestion des utilisateurs et produits).
 
-### Client
-Le client peut:
+## 11. Missing Features / TODO
+- **Visitor Mode** : Les visiteurs non connectés ne peuvent pas naviguer facilement sur les produits sans être redirigés ou restreints, la page par défaut est `login`.
+- **Search** : Aucun système de recherche ou de filtre (par catégorie ou nom) n'est implémenté pour les clients.
+- **Fin du workflow de livraison** : Le livreur ne peut pas encore marquer une commande comme `livree`.
+- **Notifications** : La table `notifications` existe mais n'est pas utilisée pour alerter les utilisateurs.
+- **UI Improvements** : Les interfaces doivent être améliorées (responsive, design moderne).
+- **Statistiques** : Pas de graphiques ou de statistiques de vente réels sur les dashboards.
+- **Gestion des erreurs et UX** : L'utilisation excessive de `die()` pour les erreurs casse l'expérience utilisateur.
 
-- voir la liste des produits,
-- ouvrir un formulaire de commande,
-- valider une commande,
-- consulter ses commandes.
+## 12. Security Analysis
+- **Existing protections** :
+  - Hachage des mots de passe (`password_hash`).
+  - Validation du rôle via les sessions (`$_SESSION['user']`).
+  - L'upload d'images vérifie si le dossier existe, mais ne valide pas le type MIME.
+- **Missing protections & Risks** :
+  - **SQL Injection (Très critique)** : De nombreuses requêtes utilisent la concaténation de chaînes directement avec les entrées utilisateur (ex: `$_POST['nom']` dans `AuthController.php`, `ProduitController.php`, `CommandeController.php`). Cela permet des injections SQL très facilement. *Seuls `ClientController.php` et `PanierController.php` utilisent les requêtes préparées.*
+  - **Upload Risks** : Aucune vérification de l'extension de fichier ni du type MIME. Un attaquant peut uploader un script PHP déguisé en image (`shell.php`) et l'exécuter.
+  - **XSS (Cross-Site Scripting)** : Les données affichées ne sont pas toujours échappées avec `htmlspecialchars()`.
+  - **CSRF** : Aucun token CSRF n'est utilisé dans les formulaires.
 
-Le flux client est centré sur `app/controllers/ClientController.php` et les vues `app/views/client/home.php` et `app/views/client/commande_form.php`.
+## 13. Current Routing
+Géré par `public/index.php` avec `$_GET['page']` :
+- `login` : `app/views/auth/login.php`
+- `admin_dashboard` : `app/views/admin/dashboard.php`
+- `vendeur_dashboard` : `app/views/vendeur/dashboard.php`
+- `livreur_dashboard`, `accepter`, `refuser` : redirige vers `LivreurController.php`
+- `client_home`, `produit_detail`, `add_review`, `client_commandes`, `commande_form` : redirige vers `ClientController.php`
+- `register_choice`, `register_client`, `register_vendeur`, `register_livreur` : pages d'inscription.
+- `add_produit`, `mes_produits`, `commandes` (vendeur), `admin_produits`, `produits` : gérés par `ProduitController.php` et vues associées.
+- `users` : géré par `UserController.php`.
+- `panier` : redirige vers la vue `panier.php`.
+- `valider_commande` : géré par `CommandeController.php`.
+- `commande_form_panier` : vue d'adresse pour la validation du panier.
 
-### Vendeur
-Le vendeur peut:
+## 14. Controllers Responsibilities
+- **AuthController** : Gestion du login, de l'inscription (insertion de l'utilisateur avec statut dynamique), et du logout.
+- **ClientController** : Affichage du catalogue (home client), détail d'un produit, ajout des commentaires (avis), affichage de l'historique des commandes, et affichage du formulaire de commande (achat direct).
+- **CommandeController** : Traitement de la validation d'une commande depuis le panier, transfert des éléments de la table `panier` vers `commandes`, et réduction du stock.
+- **LivreurController** : Affichage des commandes disponibles pour un livreur selon sa ville, et actions d'accepter ou de refuser la livraison.
+- **PanierController** : Ajout d'un article au panier (avec vérification et limitation par rapport au stock).
+- **ProduitController** : Ajout d'un produit par un vendeur, listage des produits pour le vendeur ou l'admin, suppression de produit, affichage des commandes du vendeur, et confirmation d'une commande par le vendeur.
+- **UserController** : Affichage de la liste des utilisateurs pour l'admin, modification du rôle d'un utilisateur, et suppression.
+- **AdminController** : Gestion des statuts (`approve` ou `reject`) pour les vendeurs et livreurs en attente.
 
-- ajouter un produit avec image,
-- voir ses produits,
-- voir les commandes liées à son compte,
-- assigner un livreur parmi ceux de la même ville.
-
-### Admin
-L’admin peut:
-
-- lister les utilisateurs,
-- modifier leur rôle,
-- supprimer des utilisateurs,
-- lister tous les produits,
-- supprimer un produit.
-
-### Livreur
-La partie livreur existe, mais elle semble incomplète. La vue `app/views/livreur/home.php` affiche des commandes disponibles et un lien “Accepter”, mais la route correspondante n’est pas câblée dans `public/index.php`.
-
-## Flux métier principal
-
-### 1. Login
-Le formulaire envoie vers `app/controllers/AuthController.php`. Si l’email existe et que le mot de passe est valide, la session est remplie avec les données utilisateur, puis l’utilisateur est redirigé selon son rôle.
-
-### 2. Consultation des produits
-Le client arrive sur `client_home`, où les produits sont récupérés avec une jointure sur `users` pour afficher le nom du vendeur.
-
-### 3. Passer une commande
-Le client ouvre un formulaire de commande, remplit les informations, puis la commande est insérée dans la table `commandes` avec le vendeur associé au produit.
-
-### 4. Traitement vendeur
-Le vendeur voit les commandes de sa boutique, puis choisit un livreur parmi les livreurs de sa ville. Le statut passe à `en livraison`.
-
-### 5. Administration
-L’admin pilote les comptes et le catalogue, surtout pour la modération et la maintenance.
-
-## Modèle de données inféré
-Même sans script SQL visible, les requêtes permettent d’inférer les tables suivantes:
-
-- `users`: `id`, `nom`, `email`, `password`, `role`, `ville`
-- `produits`: `id`, `nom`, `prix`, `description`, `image`, `user_id`
-- `commandes`: `id`, `produit_id`, `client_id`, `vendeur_id`, `livreur_id`, `quantite`, `nom`, `prenom`, `phone`, `adresse`, `statut`
-- `commentaires`: `id`, `produit_id`, `client_id`, `contenu`, `created_at`
-
-## Points forts
-- Le projet couvre un vrai cycle métier de bout en bout.
-- Les rôles sont déjà bien identifiés.
-- Les pages sont séparées par domaine fonctionnel.
-- La structure est facile à comprendre pour un petit projet scolaire ou prototype.
-
-## Problèmes et risques
-
-### 1. Bug critique dans la commande client
-Dans `app/controllers/ClientController.php`, il y a deux blocs `if (isset($_POST['commander']))`. Le premier insère une commande minimale puis redirige immédiatement, donc le second bloc devient inatteignable. Résultat: la version avec `quantite`, `prenom`, `phone` et `adresse` ne s’exécute jamais.
-
-Conséquence: la commande enregistrée n’utilise pas les infos du formulaire complet.
-
-### 2. SQL Injection
-Beaucoup de requêtes concatènent directement les variables utilisateur dans le SQL.
-
-Exemples:
-- `app/models/User.php`
-- `app/controllers/AuthController.php`
-- `app/controllers/ClientController.php`
-- `app/controllers/ProduitController.php`
-
-Cela expose le projet à des injections SQL sur login, recherche, insertion, suppression et mise à jour.
-
-### 3. Contrôles d’accès incomplets
-Certaines pages vérifient le rôle, mais pas toutes les routes sensibles.
-
-- `vendeur_dashboard` et `livreur_dashboard` sont inclus sans garde forte dans `public/index.php`.
-- Plusieurs actions mutatives sont déclenchées uniquement par `GET` ou `POST`, sans CSRF ni vérification supplémentaire.
-
-### 4. Déconnexion incohérente
-Le lien de déconnexion n’est pas uniforme.
-
-- `AuthController.php` gère bien `?logout=1`.
-- `app/views/admin/dashboard.php` pointe vers le contrôleur.
-- `app/views/client/home.php` pointe vers `/ShopLink/public/logout.php`, fichier qui n’apparaît pas dans le projet.
-
-### 5. Upload image fragile
-L’ajout produit accepte un fichier image sans validation de type, taille ou nom.
-
-### 6. Code mort ou routes incomplètes
-On voit des fichiers ou liens non entièrement câblés:
-
-- `app/views/client/dashboard.php` existe mais n’est pas branché comme page dédiée.
-- `app/views/vendeur/assign_livreur.php` contient une logique d’assignation différente de celle du contrôleur principal.
-- La page livreur affiche un lien `accepter` qui n’a pas d’implémentation visible dans `public/index.php`.
-
-## Lecture produit / maintenabilité
-Le projet est bon comme démonstration fonctionnelle, mais il souffre de trois limites principales:
-
-1. La logique métier est dispersée.
-2. La sécurité est trop faible pour un usage réel.
-3. La navigation dépend de chaînes de requêtes et d’inclusions directes, ce qui rend les bugs de routing fréquents.
-
-## Priorités de correction
-1. Corriger le flux de commande client et supprimer le doublon `if (isset($_POST['commander']))`.
-2. Passer toutes les requêtes SQL sensibles en requêtes préparées.
-3. Centraliser les garde-fous d’accès par rôle.
-4. Harmoniser la déconnexion et supprimer les liens cassés.
-5. Valider les uploads d’images.
-6. Extraire les règles métier vers des méthodes de modèle ou de service.
-
-## Conclusion
-ShopLink est une base claire pour un projet e-commerce multi-rôles en PHP natif. Le fonctionnement global est lisible et couvre les cas d’usage principaux, mais le code a besoin d’une remise à niveau en sécurité, en séparation des responsabilités et en cohérence des routes avant d’être considéré robuste.
+## 15. Recommendations
+- **Security Cleanup Priorities** : Réécrire l'intégralité des requêtes SQL pour utiliser des instructions préparées (`prepare` / `bind_param`) afin de contrer les injections SQL. Implémenter la validation du type MIME et de l'extension pour les uploads d'images. Protéger les affichages avec `htmlspecialchars`.
+- **Architecture Improvements** :
+  - Centraliser le routage proprement dans une classe Router.
+  - Vider les modèles (`Produit.php`, `User.php`) pour qu'ils encapsulent les requêtes SQL, allégeant ainsi les contrôleurs.
+  - Remplacer les appels `die()` par des redirections avec des messages d'erreur flash dans la session (`$_SESSION['error']`).
+- **Future Scalability & Migrations** : Le projet actuel fonctionne sur un MVC Vanilla basique. Pour une évolution future, une migration vers **Laravel** serait excellente. Elle permettrait de bénéficier d'Eloquent ORM, du routage avancé, des Middleware (pour l'authentification et les rôles), et des Blade Templates pour simplifier les vues, tout en corrigeant automatiquement les failles d'injection SQL et de CSRF.
+- **Workflow Correctives** : Lorsqu'un livreur refuse une commande, elle ne devrait pas être annulée ("refusee"), mais simplement redevenir disponible pour un autre livreur ("en attente livraison"). Il faut également créer la logique pour finaliser la course ("livree").

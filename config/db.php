@@ -1,5 +1,5 @@
 <?php
-$conn = new mysqli("localhost", "root", "", "shoplink");
+$conn = new mysqli("127.0.0.1", "root", "", "shoplink");
 
 if ($conn->connect_error) {
     die("DB error");

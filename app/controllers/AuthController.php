@@ -26,6 +26,9 @@ if (isset($_POST['login'])) {
             die("Compte refusé par l'administrateur ❌");
         }
 
+        // Prevent session fixation
+        session_regenerate_id(true);
+
         $_SESSION['user'] = $user;
 
         if ($user['role'] == 'admin') {
@@ -68,14 +71,14 @@ if (isset($_POST['register'])) {
         $status = 'pending';
     }
 
-    $sql = "INSERT INTO users
-    (nom, email, password, role, ville, telephone, cin, status)
+    $stmt = $conn->prepare("
+        INSERT INTO users (nom, email, password, role, ville, telephone, cin, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ");
+    
+    $stmt->bind_param("ssssssss", $nom, $email, $hashed, $role, $ville, $telephone, $cin, $status);
 
-    VALUES
-    ('$nom','$email','$hashed','$role','$ville',
-    '$telephone','$cin','$status')";
-
-    if ($conn->query($sql)) {
+    if ($stmt->execute()) {
 
         if ($status == 'pending') {
             echo "Compte créé ✅ En attente de validation admin.";
@@ -84,7 +87,7 @@ if (isset($_POST['register'])) {
             exit();
         }
     } else {
-        echo "Erreur register ❌ : " . $conn->error;
+        echo "Erreur register ❌ : " . $stmt->error;
     }
 }
 
